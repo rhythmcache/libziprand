@@ -10,7 +10,7 @@ A lightweight, callback-based C library for random access to uncompressed files 
  **Source-agnostic I/O** - Works with any data source: files, HTTP, memory, cloud storage, custom protocols  
  **True random access** - Seek and read from any position without decompression   
  **ZIP64 support** - Handle files and archives > 4GB  
- **Zero core dependencies** - Only stdlib for core library (HTTP module requires libcurl)  
+ **Zero core dependencies** - Only stdlib for core library
  **Thread-safe** - Multiple archive handles can be used concurrently  
 
 ## Limitations
