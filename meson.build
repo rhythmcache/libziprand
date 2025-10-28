@@ -1,6 +1,6 @@
 project('ziprand', 'c',
   version: '1.0.0',
-  license: 'Apache-2',
+  license: 'Apache-2.0',
   default_options: [
     'c_std=c17',
     'warning_level=2',
@@ -18,10 +18,15 @@ prefix = get_option('prefix')
 includedir = get_option('includedir')
 libdir = get_option('libdir')
 
-sources = files('ziprand.c', 'ziprand_helpers.c')
+sources = files(
+  'ziprand.c',
+  'ziprand_helpers.c'
+)
 headers = files('ziprand.h')
 
-libziprand = library('ziprand',
+# Shared library
+libziprand = library(
+  'ziprand',
   sources,
   version: meson.project_version(),
   soversion: soversion,
@@ -29,23 +34,28 @@ libziprand = library('ziprand',
   include_directories: include_directories('.'),
 )
 
-libziprand_static = static_library('ziprand',
+# Static library (different internal target name)
+libziprand_static = static_library(
+  'ziprand_static',
   sources,
   install: true,
   include_directories: include_directories('.'),
 )
 
+# Install headers
 install_headers(headers)
 
+# pkg-config file
 pkg = import('pkgconfig')
 pkg.generate(
-  libziprand,
+  libraries: libziprand,
   name: 'libziprand',
   description: 'A lightweight C library for random-access operations on ZIP archives.',
   version: meson.project_version(),
   filebase: 'libziprand',
 )
 
+# Dependency object for Meson subprojects
 ziprand_dep = declare_dependency(
   link_with: libziprand,
   include_directories: include_directories('.'),
