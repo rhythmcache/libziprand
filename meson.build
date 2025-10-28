@@ -24,7 +24,6 @@ sources = files(
 )
 headers = files('ziprand.h')
 
-# Shared library
 libziprand = library(
   'ziprand',
   sources,
@@ -34,7 +33,6 @@ libziprand = library(
   include_directories: include_directories('.'),
 )
 
-# Static library (different internal target name)
 libziprand_static = static_library(
   'ziprand_static',
   sources,
@@ -42,10 +40,8 @@ libziprand_static = static_library(
   include_directories: include_directories('.'),
 )
 
-# Install headers
 install_headers(headers)
 
-# pkg-config file
 pkg = import('pkgconfig')
 pkg.generate(
   libraries: libziprand,
@@ -55,8 +51,9 @@ pkg.generate(
   filebase: 'libziprand',
 )
 
-# Dependency object for Meson subprojects
 ziprand_dep = declare_dependency(
   link_with: libziprand,
   include_directories: include_directories('.'),
 )
+
+meson.override_dependency('libziprand', ziprand_dep)
