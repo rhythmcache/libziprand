@@ -5,8 +5,6 @@ A lightweight, callback-based C/rust library for random access to uncompressed f
 > Core concept adapted from [rhythmcache/payload-dumper-rust](https://github.com/rhythmcache/payload-dumper-rust)  
 > Redesigned as a general-purpose C library with pluggable I/O backends.
 
-- For `rust` documentation, see [src/lib.rs](https://github.com/rhythmcache/libziprand/blob/main/src/lib.rs)
-
 ## Key Features
 
  **Source-agnostic I/O** - Works with any data source: files, HTTP, memory, cloud storage, custom protocols  
