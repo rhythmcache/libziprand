@@ -1,4 +1,4 @@
-/* Enable POSIX extensions for fseeko/ftello */
+/* Enable POSIX extensions for pread */
 #ifndef _MSC_VER
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -9,83 +9,116 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef _MSC_VER
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #endif
 
+/* File I/O using native handles for thread-safe pread */
 typedef struct {
-    FILE* fp;
-    int should_close;
+#ifdef _WIN32
+    HANDLE handle;
+#else
+    int fd;
+#endif
 } file_io_ctx_t;
 
 static int64_t file_read(void* ctx, uint64_t offset, void* buffer, size_t size)
 {
     file_io_ctx_t* fctx = ctx;
 
-#ifdef _MSC_VER
-    if (_fseeki64(fctx->fp, offset, SEEK_SET) != 0)
+#ifdef _WIN32
+    OVERLAPPED overlapped = {0};
+    overlapped.Offset = (DWORD)offset;
+    overlapped.OffsetHigh = (DWORD)(offset >> 32);
+    
+    DWORD bytes_read;
+    if (!ReadFile(fctx->handle, buffer, (DWORD)size, &bytes_read, &overlapped)) {
         return -1;
+    }
+    return (int64_t)bytes_read;
 #else
-    if (fseeko(fctx->fp, offset, SEEK_SET) != 0)
-        return -1;
+    ssize_t bytes_read = pread(fctx->fd, buffer, size, offset);
+    return bytes_read;
 #endif
-
-    return fread(buffer, 1, size, fctx->fp);
 }
 
 static int64_t file_size(void* ctx)
 {
     file_io_ctx_t* fctx = ctx;
 
-#ifdef _MSC_VER
-    int64_t current = _ftelli64(fctx->fp);
-    if (current < 0)
+#ifdef _WIN32
+    LARGE_INTEGER size;
+    if (!GetFileSizeEx(fctx->handle, &size)) {
         return -1;
-
-    if (_fseeki64(fctx->fp, 0, SEEK_END) != 0)
-        return -1;
-    int64_t size = _ftelli64(fctx->fp);
-    _fseeki64(fctx->fp, current, SEEK_SET);
+    }
+    return (int64_t)size.QuadPart;
 #else
-    off_t current = ftello(fctx->fp);
-    if (current < 0)
+    struct stat st;
+    if (fstat(fctx->fd, &st) < 0) {
         return -1;
-
-    if (fseeko(fctx->fp, 0, SEEK_END) != 0)
-        return -1;
-    off_t size = ftello(fctx->fp);
-    fseeko(fctx->fp, current, SEEK_SET);
+    }
+    return (int64_t)st.st_size;
 #endif
-
-    return size;
 }
 
 static void file_close(void* ctx)
 {
     file_io_ctx_t* fctx = ctx;
-    if (fctx->should_close && fctx->fp)
-        fclose(fctx->fp);
+#ifdef _WIN32
+    if (fctx->handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(fctx->handle);
+    }
+#else
+    if (fctx->fd >= 0) {
+        close(fctx->fd);
+    }
+#endif
     free(fctx);
 }
 
 ziprand_io_t* ziprand_io_file(const char* path)
 {
-    FILE* fp = fopen(path, "rb");
-    if (!fp)
+    if (!path)
         return NULL;
 
     file_io_ctx_t* fctx = malloc(sizeof(file_io_ctx_t));
-    if (!fctx) {
-        fclose(fp);
+    if (!fctx)
+        return NULL;
+
+#ifdef _WIN32
+    fctx->handle = CreateFileA(
+        path,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    if (fctx->handle == INVALID_HANDLE_VALUE) {
+        free(fctx);
         return NULL;
     }
-
-    fctx->fp = fp;
-    fctx->should_close = 1;
+#else
+    fctx->fd = open(path, O_RDONLY);
+    if (fctx->fd < 0) {
+        free(fctx);
+        return NULL;
+    }
+#endif
 
     ziprand_io_t* io = malloc(sizeof(ziprand_io_t));
     if (!io) {
-        fclose(fp);
+#ifdef _WIN32
+        CloseHandle(fctx->handle);
+#else
+        close(fctx->fd);
+#endif
         free(fctx);
         return NULL;
     }
